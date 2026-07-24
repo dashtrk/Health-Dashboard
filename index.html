@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Health Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f5; --panel:#ffffff; --ink:#1c2b2a; --muted:#5b6b6a; --line:#dde3e1;
+    --teal:#0f6f66; --amber:#b5791a; --red:#b1402f; --violet:#7a5cb5; --blue:#2f6fa8;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Helvetica Neue",Arial,sans-serif;}
+  .wrap{max-width:1280px;margin:0 auto;padding:30px 24px 90px;}
+
+  header{border-bottom:3px solid var(--ink);padding-bottom:16px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;}
+  header h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-0.01em;}
+  header .range{color:var(--muted);font-size:12.5px;}
+
+  nav{display:flex;gap:0;flex-wrap:wrap;margin:18px 0 30px;font-size:12px;border-bottom:1px solid var(--line);}
+  nav a{color:var(--muted);text-decoration:none;padding:9px 14px;border-bottom:2px solid transparent;}
+  nav a:hover{color:var(--teal);border-bottom-color:var(--teal);}
+
+  section{margin-bottom:38px;}
+  section h2{font-size:11.5px;text-transform:uppercase;letter-spacing:0.1em;color:var(--teal);border-bottom:1px solid var(--line);padding-bottom:9px;margin:0 0 16px;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;}
+  .grid.narrow{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));}
+  .grid.wide2{grid-template-columns:repeat(2, 1fr);}
+  @media (max-width:640px){ .grid.wide2{grid-template-columns:1fr;} }
+  .grid.wide{grid-template-columns:repeat(auto-fit,minmax(420px,1fr));}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:14px 16px 8px;}
+  .card .title-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;}
+  .card .name{font-size:13.5px;font-weight:600;}
+  .card .latest{font-size:12.5px;font-weight:700;}
+  .card .latest.ok{color:var(--teal);} .card .latest.watch{color:var(--amber);} .card .latest.flag{color:var(--red);}
+  .card .meta{font-size:10.5px;color:var(--muted);margin-bottom:6px;}
+  .card canvas{width:100%;}
+
+  .subcat{margin-bottom:22px;}
+  .subcat h4{font-size:10.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin:0 0 8px;}
+
+  .legend-row{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 14px;font-size:11px;color:var(--muted);}
+  .legend-row span{display:inline-flex;align-items:center;gap:5px;}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .dot.ok{background:var(--teal);} .dot.watch{background:var(--amber);} .dot.flag{background:var(--red);}
+  .dot.apple{background:var(--blue);} .dot.whoop{background:var(--violet);}
+
+  .profile-grid{display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:16px;align-items:stretch;}
+  @media (max-width:640px){ .profile-grid{grid-template-columns:1fr;} }
+  .profile-card{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:14px;}
+  .ring-wrap{position:relative;width:100px;height:100px;}
+  .ring-wrap svg{width:100%;height:100%;transform:rotate(-90deg);}
+  .ring-wrap .ring-bg{fill:none;stroke:var(--line);stroke-width:8;}
+  .ring-wrap .ring-fg{fill:none;stroke:var(--teal);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 0.6s ease;}
+  .ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .ring-center .age-num{font-size:26px;font-weight:700;line-height:1;color:var(--ink);}
+  .ring-center .age-lbl{font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px;}
+  .profile-facts{display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:var(--muted);text-align:center;}
+  .profile-facts .fact{text-align:center;}
+  .profile-facts .fact .v{display:block;font-size:15px;font-weight:700;color:var(--ink);}
+  .vitals-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;}
+  .vital-card{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:14px 16px;}
+  .vital-card .v-name{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;}
+  .vital-card .v-val{font-size:22px;font-weight:700;color:var(--ink);}
+  .vital-card .v-val span{font-size:12px;font-weight:400;color:var(--muted);margin-left:3px;}
+  .vital-card .v-date{font-size:10.5px;color:var(--muted);margin-top:4px;}
+
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;}
+  .stat-row .stat{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:14px 16px;}
+  .stat-row .stat .num{font-size:20px;font-weight:700;color:var(--ink);}
+  .stat-row .stat .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-top:2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Health Dashboard</h1>
+    <span class="range">Jul 2021 – Jul 2026 &middot; Labs · Whoop · Apple Watch · Body Composition</span>
+  </header>
+
+  <nav>
+    <a href="#profile">Profile</a>
+    <a href="#heart">Heart Trends</a>
+    <a href="#sleep">Sleep</a>
+    <a href="#fitness">Fitness &amp; Training</a>
+    <a href="#bodycomp">Body Composition</a>
+    <a href="#labs">Lab Results</a>
+  </nav>
+
+  <section id="profile">
+    <h2>Profile</h2>
+    <div class="profile-grid">
+      <div class="profile-card">
+        <div class="ring-wrap">
+          <svg viewBox="0 0 100 100">
+            <circle class="ring-bg" cx="50" cy="50" r="42"></circle>
+            <circle class="ring-fg" id="age-ring" cx="50" cy="50" r="42"></circle>
+          </svg>
+          <div class="ring-center">
+            <div class="age-num" id="age-number">–</div>
+            <div class="age-lbl">years old</div>
+          </div>
+        </div>
+        <div class="profile-facts">
+          <div class="fact"><span class="v">Jul 27, 1997</span>Date of Birth</div>
+          <div class="fact"><span class="v">170 cm</span>Height</div>
+        </div>
+      </div>
+      <div class="vitals-grid" id="vitals-latest"></div>
+    </div>
+  </section>
+
+  <section id="heart">
+    <h2>Heart Rate &amp; HRV — Apple Watch &amp; Whoop Combined</h2>
+    <div class="legend-row">
+      <span><i class="dot apple"></i>Apple Watch</span>
+      <span><i class="dot whoop"></i>Whoop</span>
+    </div>
+    <div class="grid narrow">
+      <div class="card"><div class="name">Resting Heart Rate</div><div class="meta">bpm</div><div style="position:relative;height:160px;width:100%;"><canvas id="c-rhr"></canvas></div></div>
+      <div class="card"><div class="name">Heart Rate Variability</div><div class="meta">ms (different algorithms per device)</div><div style="position:relative;height:160px;width:100%;"><canvas id="c-hrv"></canvas></div></div>
+    </div>
+  </section>
+
+  <section id="sleep">
+    <h2>Sleep</h2>
+    <div class="grid narrow">
+      <div class="card"><div class="name">Sleep Duration &amp; Performance</div><div class="meta">Apple &amp; Whoop: hrs/night (left axis) · Whoop performance % (right axis)</div><div style="position:relative;height:210px;width:100%;"><canvas id="c-sleep"></canvas></div></div>
+    </div>
+  </section>
+
+  <section id="fitness">
+    <h2>Fitness &amp; Training</h2>
+    <div class="grid wide2">
+      <div class="card"><div class="name">VO2max</div><div class="meta">mL/kg/min — Apple Watch</div><div style="position:relative;height:170px;width:100%;"><canvas id="c-vo2"></canvas></div></div>
+      <div class="card"><div class="name">Recovery &amp; Day Strain</div><div class="meta">Whoop, weekly avg — recovery % (left), strain 0–21 (right)</div><div style="position:relative;height:170px;width:100%;"><canvas id="c-recovery"></canvas></div></div>
+      <div class="card"><div class="name">Steps per Day</div><div class="meta">Apple Watch, monthly avg</div><div style="position:relative;height:170px;width:100%;"><canvas id="c-steps"></canvas></div></div>
+      <div class="card"><div class="name">Workout Mix</div><div class="meta">Apple Watch, sessions/month</div><div style="position:relative;height:170px;width:100%;"><canvas id="c-workouts"></canvas></div></div>
+    </div>
+
+    <div class="subcat" style="margin-top:22px;">
+      <h4>Time in Heart Rate Zones</h4>
+      <p class="v-date" style="margin:0 0 12px;">Zones use heart rate reserve: max HR 188 bpm (age-based estimate), resting HR 54 bpm. Apple Watch data is Apple-sourced only (Whoop-relayed entries excluded to avoid double-counting) and covers through Aug 2025; Whoop data starts Nov 30, 2025, once wear became continuous. Where both have data for the same month, values are averaged. "Below Z1" is Apple-only — Whoop doesn't report that bucket.</p>
+      <div class="grid narrow">
+        <div class="card"><div class="name">Overall — Apple Watch</div><div class="meta">Total hours by zone</div><div style="position:relative;height:150px;width:100%;"><canvas id="c-hr-zones-apple"></canvas></div></div>
+        <div class="card"><div class="name">Overall — Whoop</div><div class="meta">Total hours by zone</div><div style="position:relative;height:150px;width:100%;"><canvas id="c-hr-zones-whoop"></canvas></div></div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <div class="name">Zone Time by Month</div>
+        <div class="meta">Minutes per month, stacked by zone — averaged across Apple Watch and Whoop where both have data</div>
+        <div style="position:relative;height:220px;width:100%;"><canvas id="c-hr-zones-monthly"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="bodycomp">
+    <h2>Body Composition</h2>
+    <div class="grid wide2">
+      <div class="card"><div class="name">Weight &amp; Skeletal Muscle Mass</div><div class="meta">kg</div><div style="position:relative;height:170px;width:100%;"><canvas id="c-bc-weight"></canvas></div></div>
+      <div class="card"><div class="name">Percent Body Fat</div><div class="meta">%</div><div style="position:relative;height:170px;width:100%;"><canvas id="c-bc-bf"></canvas></div></div>
+      <div class="card"><div class="name">Fat Mass &amp; Fat-Free Mass</div><div class="meta">kg</div><div style="position:relative;height:170px;width:100%;"><canvas id="c-bc-mass"></canvas></div></div>
+      <div class="card"><div class="name">Total Body Water</div><div class="meta">liters</div><div style="position:relative;height:170px;width:100%;"><canvas id="c-bc-water"></canvas></div></div>
+      <div class="card"><div class="name">BMR</div><div class="meta">kcal/day, resting energy expenditure</div><div style="position:relative;height:170px;width:100%;"><canvas id="c-bc-bmr"></canvas></div></div>
+    </div>
+  </section>
+
+  <section id="labs">
+    <h2>Lab Results</h2>
+    <div class="legend-row">
+      <span><i class="dot ok"></i>Within range</span>
+      <span><i class="dot watch"></i>Borderline / no range printed</span>
+      <span><i class="dot flag"></i>Flagged out of range</span>
+    </div>
+    <div id="labs-root"></div>
+  </section>
+</div>
+
+<script>
+/* ============ SHARED DATA ============ */
+const appleMonthly = {"steps": {"2022-11": 4236.7, "2022-12": 5285.8, "2023-01": 3693.6, "2023-02": 4723.2, "2023-03": 11475.2, "2023-04": 11031.1, "2023-05": 19058.5, "2023-06": 17299.7, "2023-07": 17086.2, "2023-08": 14109.9, "2023-09": 14818.3, "2023-10": 10199.4, "2023-11": 13076.7, "2023-12": 17090.9, "2024-01": 9881.6, "2024-02": 11090.9, "2024-03": 11581.0, "2024-04": 10881.9, "2024-05": 10683.7, "2024-06": 15006.2, "2024-07": 11590.7, "2024-08": 12281.5, "2024-09": 18250.4, "2024-10": 11032.7, "2024-11": 10117.0, "2024-12": 9471.3, "2025-01": 11074.1, "2025-02": 10915.5, "2025-03": 8826.5, "2025-04": 9203.8, "2025-05": 13653.0, "2025-06": 17531.5, "2025-07": 13520.6, "2025-08": 10262.3, "2025-09": 3052.5, "2025-10": 4907.4, "2025-11": 6204.5, "2025-12": 5047.5, "2026-01": 2637.8, "2026-02": 5459.1, "2026-03": 3562.3, "2026-04": 4807.9, "2026-05": 4594.7, "2026-06": 5338.7, "2026-07": 4101.6},
+  "hr": {"2022-11": 64.0, "2022-12": 61.97, "2023-01": 58.45, "2023-02": 60.19, "2023-03": 64.1, "2023-04": 57.67, "2023-05": 58.52, "2023-06": 58.43, "2023-07": 60.68, "2023-08": 59.23, "2023-09": 57.94, "2023-10": 55.13, "2023-11": 60.0, "2023-12": 61.26, "2024-01": 59.23, "2024-02": 57.28, "2024-03": 53.17, "2024-04": 59.47, "2024-05": 61.13, "2024-06": 61.03, "2024-07": 61.17, "2024-08": 63.61, "2024-09": 61.3, "2024-10": 57.16, "2024-11": 60.6, "2024-12": 59.41, "2025-01": 64.1, "2025-02": 64.62, "2025-03": 59.0, "2025-04": 67.58, "2025-05": 62.8, "2025-06": 59.97, "2025-07": 58.58, "2025-08": 60.14},
+  "hrv": {"2022-11": 51.54, "2022-12": 50.66, "2023-01": 52.02, "2023-02": 51.32, "2023-03": 43.66, "2023-04": 53.37, "2023-05": 54.15, "2023-06": 56.96, "2023-07": 58.65, "2023-08": 53.67, "2023-09": 59.72, "2023-10": 62.4, "2023-11": 55.86, "2023-12": 51.96, "2024-01": 51.55, "2024-02": 55.35, "2024-03": 58.75, "2024-04": 56.24, "2024-05": 53.92, "2024-06": 53.81, "2024-07": 54.9, "2024-08": 53.29, "2024-09": 53.68, "2024-10": 53.98, "2024-11": 53.61, "2024-12": 57.98, "2025-01": 53.56, "2025-02": 50.04, "2025-03": 50.19, "2025-04": 54.29, "2025-05": 51.22, "2025-06": 54.03, "2025-07": 55.57, "2025-08": 55.21},
+  "sleep": {"2022-11": 5.44, "2022-12": 5.33, "2023-01": 5.46, "2023-02": 5.47, "2023-03": 6.71, "2023-04": 6.25, "2023-05": 6.43, "2023-06": 6.82, "2023-07": 6.81, "2023-08": 6.52, "2023-09": 6.79, "2023-10": 6.34, "2023-11": 5.9, "2023-12": 5.78, "2024-01": 5.42, "2024-02": 5.75, "2024-03": 5.69, "2024-04": 5.91, "2024-05": 6.23, "2024-06": 6.17, "2024-07": 6.35, "2024-08": 5.66, "2024-09": 5.46, "2024-10": 6.02, "2024-11": 6.1, "2024-12": 5.65, "2025-01": 5.36, "2025-02": 6.04, "2025-03": 5.54, "2025-04": 6.24, "2025-05": 6.95, "2025-06": 6.22, "2025-07": 6.43, "2025-08": 5.84},
+  "vo2": [["2022-12-16", 40.81], ["2023-05-03", 36.93], ["2023-05-06", 34.68], ["2023-05-14", 36.83], ["2023-05-23", 35.97], ["2023-06-04", 37.49], ["2023-06-18", 39.41], ["2023-07-03", 39.31], ["2023-07-15", 39.96], ["2023-07-26", 40.83], ["2023-08-04", 40.82], ["2023-08-24", 41.11], ["2023-09-01", 40.77], ["2023-09-17", 40.83], ["2023-09-25", 42.09], ["2023-10-09", 42.63], ["2023-10-20", 41.75], ["2023-11-09", 41.5], ["2023-11-26", 38.22], ["2023-12-14", 39.3], ["2023-12-30", 39.6], ["2024-01-18", 39.55], ["2024-02-28", 38.5], ["2024-03-13", 39.65], ["2024-03-30", 39.46], ["2024-04-25", 39.41], ["2024-05-23", 41.12], ["2024-06-08", 40.03], ["2024-07-20", 33.72], ["2024-08-17", 34.14], ["2024-09-27", 35.61], ["2024-10-25", 36.55], ["2024-11-26", 37.49], ["2024-12-03", 36.94], ["2024-12-29", 35.21], ["2025-01-20", 35.47], ["2025-02-07", 35.27], ["2025-04-30", 36.59], ["2025-06-16", 31.77], ["2025-06-28", 35.5], ["2025-07-14", 35.21], ["2025-07-31", 34.34]],
+  "workouts": {"2022-12": {"cardio": 2}, "2023-03": {"other": 24, "cardio": 24, "strength": 1}, "2023-04": {"other": 20, "cardio": 37, "strength": 2}, "2023-05": {"strength": 17, "cardio": 49, "other": 3}, "2023-06": {"strength": 19, "cardio": 43, "other": 4}, "2023-07": {"cardio": 44, "strength": 17, "other": 4}, "2023-08": {"strength": 20, "cardio": 39, "other": 10}, "2023-09": {"cardio": 38, "strength": 15, "other": 15}, "2023-10": {"other": 5, "cardio": 12, "strength": 2}, "2023-12": {"cardio": 10, "strength": 12}, "2024-01": {"cardio": 8, "strength": 17}, "2024-02": {"strength": 24, "cardio": 13, "other": 1}, "2024-03": {"strength": 15, "cardio": 20, "other": 3}, "2024-04": {"strength": 14, "cardio": 7, "other": 8}, "2024-05": {"strength": 17, "cardio": 12, "other": 12}, "2024-06": {"strength": 17, "other": 15, "cardio": 8}, "2024-07": {"strength": 7, "other": 7, "cardio": 1}, "2024-08": {"strength": 13, "cardio": 7, "other": 12}, "2024-09": {"strength": 7, "other": 13, "cardio": 5}, "2024-10": {"cardio": 6, "other": 10, "strength": 9}, "2024-11": {"strength": 4, "cardio": 8, "other": 5}, "2024-12": {"cardio": 5, "other": 6, "strength": 6}, "2025-01": {"strength": 4, "other": 3}, "2025-02": {"cardio": 7, "other": 7, "strength": 3}, "2025-03": {"strength": 2, "cardio": 4, "other": 3}, "2025-04": {"cardio": 8, "other": 5, "strength": 10}, "2025-05": {"strength": 11, "cardio": 18, "other": 11}, "2025-06": {"strength": 14, "cardio": 19, "other": 11}, "2025-07": {"strength": 15, "cardio": 31, "other": 8}, "2025-08": {"strength": 1, "cardio": 3}}};
+
+const whoopWeekly = [
+{"week":"2025-12-01","recovery":52.0,"rhr":54.3,"hrv":57.7,"sleep_perf":71.4,"sleep_hrs":5.74,"strain":12.7},
+{"week":"2025-12-08","recovery":58.6,"rhr":52.6,"hrv":65.6,"sleep_perf":64.6,"sleep_hrs":5.77,"strain":12.2},
+{"week":"2025-12-15","recovery":62.9,"rhr":53.4,"hrv":70.6,"sleep_perf":69.1,"sleep_hrs":6.37,"strain":12.5},
+{"week":"2025-12-22","recovery":44.8,"rhr":58.2,"hrv":57.5,"sleep_perf":58.3,"sleep_hrs":5.86,"strain":11.8},
+{"week":"2025-12-29","recovery":56.0,"rhr":54.3,"hrv":63.3,"sleep_perf":69.9,"sleep_hrs":6.09,"strain":10.7},
+{"week":"2026-01-05","recovery":50.6,"rhr":55.0,"hrv":57.6,"sleep_perf":69.4,"sleep_hrs":5.9,"strain":10.2},
+{"week":"2026-01-12","recovery":56.0,"rhr":55.0,"hrv":59.3,"sleep_perf":72.7,"sleep_hrs":6.28,"strain":11.8},
+{"week":"2026-01-19","recovery":47.3,"rhr":56.6,"hrv":57.4,"sleep_perf":66.9,"sleep_hrs":6.15,"strain":11.4},
+{"week":"2026-01-26","recovery":54.7,"rhr":58.3,"hrv":52.2,"sleep_perf":73.0,"sleep_hrs":6.83,"strain":11.9},
+{"week":"2026-02-02","recovery":63.9,"rhr":54.9,"hrv":56.1,"sleep_perf":77.3,"sleep_hrs":6.54,"strain":10.5},
+{"week":"2026-02-09","recovery":41.8,"rhr":55.7,"hrv":56.5,"sleep_perf":52.5,"sleep_hrs":5.1,"strain":12.0},
+{"week":"2026-02-16","recovery":63.0,"rhr":63.4,"hrv":57.9,"sleep_perf":56.4,"sleep_hrs":6.05,"strain":10.1},
+{"week":"2026-02-23","recovery":62.3,"rhr":57.3,"hrv":59.0,"sleep_perf":67.0,"sleep_hrs":6.34,"strain":9.4},
+{"week":"2026-03-02","recovery":63.4,"rhr":52.6,"hrv":69.6,"sleep_perf":60.7,"sleep_hrs":5.2,"strain":7.2},
+{"week":"2026-03-09","recovery":65.2,"rhr":52.7,"hrv":68.2,"sleep_perf":69.0,"sleep_hrs":6.22,"strain":7.9},
+{"week":"2026-03-16","recovery":76.6,"rhr":52.4,"hrv":70.6,"sleep_perf":67.2,"sleep_hrs":6.94,"strain":9.5},
+{"week":"2026-03-23","recovery":44.0,"rhr":54.0,"hrv":61.6,"sleep_perf":61.1,"sleep_hrs":5.8,"strain":13.9},
+{"week":"2026-03-30","recovery":54.0,"rhr":54.7,"hrv":60.7,"sleep_perf":68.3,"sleep_hrs":6.1,"strain":14.4},
+{"week":"2026-04-06","recovery":57.1,"rhr":55.6,"hrv":60.4,"sleep_perf":68.4,"sleep_hrs":6.24,"strain":13.5},
+{"week":"2026-04-13","recovery":65.4,"rhr":53.7,"hrv":63.0,"sleep_perf":79.1,"sleep_hrs":7.07,"strain":12.2},
+{"week":"2026-04-20","recovery":76.4,"rhr":50.6,"hrv":72.3,"sleep_perf":74.9,"sleep_hrs":6.49,"strain":12.8},
+{"week":"2026-04-27","recovery":54.9,"rhr":51.6,"hrv":65.1,"sleep_perf":67.1,"sleep_hrs":5.97,"strain":11.3},
+{"week":"2026-05-04","recovery":49.3,"rhr":52.6,"hrv":70.0,"sleep_perf":63.0,"sleep_hrs":5.51,"strain":12.9},
+{"week":"2026-05-11","recovery":72.0,"rhr":51.3,"hrv":73.1,"sleep_perf":75.1,"sleep_hrs":6.58,"strain":12.4},
+{"week":"2026-05-18","recovery":54.0,"rhr":51.8,"hrv":66.1,"sleep_perf":73.2,"sleep_hrs":6.5,"strain":11.1},
+{"week":"2026-05-25","recovery":44.3,"rhr":54.0,"hrv":59.2,"sleep_perf":63.3,"sleep_hrs":6.0,"strain":11.6},
+{"week":"2026-06-01","recovery":59.9,"rhr":55.1,"hrv":66.7,"sleep_perf":68.3,"sleep_hrs":5.68,"strain":8.6},
+{"week":"2026-06-08","recovery":40.1,"rhr":54.4,"hrv":60.0,"sleep_perf":60.0,"sleep_hrs":5.52,"strain":10.8},
+{"week":"2026-06-15","recovery":70.0,"rhr":53.4,"hrv":63.9,"sleep_perf":77.9,"sleep_hrs":6.54,"strain":10.7},
+{"week":"2026-06-22","recovery":65.1,"rhr":53.6,"hrv":64.3,"sleep_perf":71.4,"sleep_hrs":6.63,"strain":12.9},
+{"week":"2026-06-29","recovery":70.3,"rhr":53.0,"hrv":65.7,"sleep_perf":73.9,"sleep_hrs":6.52,"strain":11.9},
+{"week":"2026-07-06","recovery":66.6,"rhr":52.6,"hrv":69.7,"sleep_perf":76.3,"sleep_hrs":6.6,"strain":10.1},
+{"week":"2026-07-13","recovery":37.0,"rhr":58.3,"hrv":52.0,"sleep_perf":46.8,"sleep_hrs":4.78,"strain":10.3},
+{"week":"2026-07-20","recovery":49.7,"rhr":53.3,"hrv":59.3,"sleep_perf":60.0,"sleep_hrs":5.17,"strain":16.2}
+];
+
+function fmtMonth(m){ const d = new Date(m+"-15T00:00:00"); return d.toLocaleDateString("en-US",{month:"short",year:"numeric"}); }
+function fmtWeek(w){ const d = new Date(w+"T00:00:00"); return d.toLocaleDateString("en-US",{month:"short",year:"numeric"}); }
+
+// Build a shared, sorted timeline of labels (Apple month midpoints + Whoop week starts)
+function buildMergedAxis(appleDict, whoopArr, whoopField){
+  const points = [];
+  Object.keys(appleDict).sort().forEach(m=>points.push({date:m+"-15", label:fmtMonth(m), apple:appleDict[m], whoop:null}));
+  whoopArr.forEach(w=>points.push({date:w.week, label:fmtWeek(w.week), apple:null, whoop:w[whoopField]}));
+  points.sort((a,b)=> a.date.localeCompare(b.date));
+  return points;
+}
+
+/* ============ COMBINED RHR (Apple & Whoop overlaid) ============ */
+(function(){
+  const pts = buildMergedAxis(appleMonthly.hr, whoopWeekly, "rhr");
+  new Chart(document.getElementById("c-rhr").getContext("2d"), {
+    type:"line",
+    data:{labels: pts.map(p=>p.label), datasets:[
+      {label:"Apple Watch", data:pts.map(p=>p.apple), borderColor:"#2f6fa8", backgroundColor:"rgba(47,111,168,0.06)", pointRadius:0, borderWidth:2, tension:0.3, fill:false, spanGaps:true},
+      {label:"Whoop", data:pts.map(p=>p.whoop), borderColor:"#7a5cb5", backgroundColor:"rgba(122,92,181,0.06)", pointRadius:0, borderWidth:2, tension:0.3, fill:false, spanGaps:true},
+    ]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}}, tooltip:{mode:"index",intersect:false}},
+      scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:8},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}}}}
+  });
+})();
+
+/* ============ COMBINED HRV (Apple & Whoop overlaid) ============ */
+(function(){
+  const pts = buildMergedAxis(appleMonthly.hrv, whoopWeekly, "hrv");
+  new Chart(document.getElementById("c-hrv").getContext("2d"), {
+    type:"line",
+    data:{labels: pts.map(p=>p.label), datasets:[
+      {label:"Apple Watch", data:pts.map(p=>p.apple), borderColor:"#2f6fa8", backgroundColor:"rgba(47,111,168,0.06)", pointRadius:0, borderWidth:2, tension:0.3, fill:false, spanGaps:true},
+      {label:"Whoop", data:pts.map(p=>p.whoop), borderColor:"#7a5cb5", backgroundColor:"rgba(122,92,181,0.06)", pointRadius:0, borderWidth:2, tension:0.3, fill:false, spanGaps:true},
+    ]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}}, tooltip:{mode:"index",intersect:false}},
+      scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:8},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}}}}
+  });
+})();
+
+/* ============ SLEEP: Apple hrs + Whoop hrs (left) + Whoop % (right) ============ */
+// Apple and Whoop sleep duration share the same left axis since both are in
+// hours — a real duration comparison. Whoop's performance % is layered on
+// top on its own axis since that's a different unit (sleep need vs. actual).
+(function(){
+  const appleMonths = Object.keys(appleMonthly.sleep).sort();
+  const points = [];
+  appleMonths.forEach(m=>points.push({date:m+"-15", label:fmtMonth(m), apple:appleMonthly.sleep[m], whoopHrs:null, whoopPct:null}));
+  whoopWeekly.forEach(w=>points.push({date:w.week, label:fmtWeek(w.week), apple:null, whoopHrs:w.sleep_hrs!=null?w.sleep_hrs:null, whoopPct:w.sleep_perf}));
+  points.sort((a,b)=> a.date.localeCompare(b.date));
+
+  new Chart(document.getElementById("c-sleep").getContext("2d"), {
+    type:"line",
+    data:{labels: points.map(p=>p.label), datasets:[
+      {label:"Apple (hrs)", data:points.map(p=>p.apple), borderColor:"#2f6fa8", backgroundColor:"rgba(47,111,168,0.08)", pointRadius:0, borderWidth:2, tension:0.3, fill:true, spanGaps:true, yAxisID:"y"},
+      {label:"Whoop (hrs)", data:points.map(p=>p.whoopHrs), borderColor:"#0f6f66", backgroundColor:"rgba(15,111,102,0.08)", pointRadius:0, borderWidth:2, tension:0.3, fill:true, spanGaps:true, yAxisID:"y"},
+      {label:"Whoop Performance (%)", data:points.map(p=>p.whoopPct), borderColor:"#7a5cb5", backgroundColor:"rgba(122,92,181,0.04)", pointRadius:0, borderWidth:1.5, tension:0.3, fill:false, spanGaps:true, yAxisID:"y1"},
+    ]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}}, tooltip:{mode:"index",intersect:false}},
+      scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:8},grid:{display:false}},
+        y:{position:"left",ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"},title:{display:true,text:"hours",font:{size:10}}},
+        y1:{position:"right",ticks:{font:{size:10},color:"#5b6b6a"},grid:{display:false},title:{display:true,text:"performance %",font:{size:10}}}}}
+  });
+})();
+
+/* ============ VO2max ============ */
+new Chart(document.getElementById("c-vo2").getContext("2d"), {
+  type:"line",
+  data:{labels:appleMonthly.vo2.map(p=>{const d=new Date(p[0]+"T00:00:00");return d.toLocaleDateString("en-US",{month:"short",year:"numeric"});}),
+    datasets:[{data:appleMonthly.vo2.map(p=>p[1]), borderColor:"#b5791a", backgroundColor:"rgba(181,121,26,0.08)", pointRadius:2, borderWidth:1.5, tension:0.2, fill:false}]},
+  options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+    scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:7},grid:{display:false}},
+      y:{ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}}}}
+});
+
+/* ============ Recovery & Strain (dual axis) ============ */
+new Chart(document.getElementById("c-recovery").getContext("2d"), {
+  type:"line",
+  data:{labels:whoopWeekly.map(w=>fmtWeek(w.week)),
+    datasets:[
+      {label:"Recovery %", data:whoopWeekly.map(w=>w.recovery), borderColor:"#0f6f66", backgroundColor:"rgba(15,111,102,0.08)", pointRadius:0, borderWidth:2, tension:0.3, fill:true, yAxisID:"y"},
+      {label:"Strain", data:whoopWeekly.map(w=>w.strain), borderColor:"#b1402f", backgroundColor:"rgba(177,64,47,0.04)", pointRadius:0, borderWidth:1.5, tension:0.3, fill:false, yAxisID:"y1"},
+    ]},
+  options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}}},
+    scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:7},grid:{display:false}},
+      y:{position:"left",ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}},
+      y1:{position:"right",min:0,max:21,ticks:{font:{size:10},color:"#5b6b6a"},grid:{display:false}}}}
+});
+
+/* ============ Steps ============ */
+(function(){
+  const months = Object.keys(appleMonthly.steps).sort();
+  new Chart(document.getElementById("c-steps").getContext("2d"), {
+    type:"line",
+    data:{labels:months.map(fmtMonth), datasets:[{data:months.map(m=>appleMonthly.steps[m]), borderColor:"#0f6f66", backgroundColor:"rgba(15,111,102,0.10)", pointRadius:0, borderWidth:2, tension:0.3, fill:true}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:8},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}}}}
+  });
+})();
+
+/* ============ Workout Mix ============ */
+(function(){
+  const months = Object.keys(appleMonthly.workouts).sort();
+  new Chart(document.getElementById("c-workouts").getContext("2d"), {
+    type:"bar",
+    data:{labels:months.map(fmtMonth), datasets:[
+      {label:"Cardio", data:months.map(m=>appleMonthly.workouts[m].cardio||0), backgroundColor:"#2f6fa8"},
+      {label:"Strength", data:months.map(m=>appleMonthly.workouts[m].strength||0), backgroundColor:"#0f6f66"},
+      {label:"Other", data:months.map(m=>appleMonthly.workouts[m].other||0), backgroundColor:"#c9cfce"},
+    ]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}}},
+      scales:{x:{stacked:true,ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:8},grid:{display:false}},
+        y:{stacked:true,ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}}}}
+  });
+})();
+
+
+/* ============ Heart Rate Zones ============ */
+(function(){
+  const ZONE_COLORS = {below_z1:"#c9cfce", Z1:"#5aa9e2", Z2:"#0f6f66", Z3:"#b5791a", Z4:"#d97a4d", Z5:"#b1402f"};
+  const ZONE_LABELS = {below_z1:"Below Z1", Z1:"Z1 · Very Light", Z2:"Z2 · Light/Aerobic", Z3:"Z3 · Moderate", Z4:"Z4 · Hard", Z5:"Z5 · Max"};
+  const ZONE_ORDER = ["below_z1","Z1","Z2","Z3","Z4","Z5"];
+  const ZONE_ORDER_WHOOP = ["Z1","Z2","Z3","Z4","Z5"]; // Whoop doesn't report a "below Z1" bucket
+
+  const overallApple = {"below_z1":244.45,"Z1":158.03,"Z2":110.6,"Z3":43.29,"Z4":12.93,"Z5":0.35};
+  const overallWhoop = {"Z1":86.0,"Z2":26.38,"Z3":7.65,"Z4":0.48,"Z5":0.03};
+
+  new Chart(document.getElementById("c-hr-zones-apple").getContext("2d"), {
+    type:"doughnut",
+    data:{
+      labels: ZONE_ORDER.map(z=>ZONE_LABELS[z]),
+      datasets:[{data:ZONE_ORDER.map(z=>overallApple[z]), backgroundColor:ZONE_ORDER.map(z=>ZONE_COLORS[z]), borderColor:"#ffffff", borderWidth:2}]
+    },
+    options:{responsive:true, maintainAspectRatio:false, aspectRatio:2.6, plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}},
+      tooltip:{callbacks:{label:(item)=>`${item.label}: ${item.formattedValue} hrs`}}}}
+  });
+
+  new Chart(document.getElementById("c-hr-zones-whoop").getContext("2d"), {
+    type:"doughnut",
+    data:{
+      labels: ZONE_ORDER_WHOOP.map(z=>ZONE_LABELS[z]),
+      datasets:[{data:ZONE_ORDER_WHOOP.map(z=>overallWhoop[z]), backgroundColor:ZONE_ORDER_WHOOP.map(z=>ZONE_COLORS[z]), borderColor:"#ffffff", borderWidth:2}]
+    },
+    options:{responsive:true, maintainAspectRatio:false, aspectRatio:2.6, plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}},
+      tooltip:{callbacks:{label:(item)=>`${item.label}: ${item.formattedValue} hrs`}}}}
+  });
+
+  const monthlyApple = {"2022-12": {"below_z1": 21.1, "Z1": 26.4, "Z2": 13.2}, "2023-03": {"Z1": 195.6, "Z2": 273.2, "Z4": 366.4, "Z3": 385.7, "below_z1": 144.8, "Z5": 2.0}, "2023-04": {"Z1": 501.6, "below_z1": 580.9, "Z2": 552.4, "Z3": 339.4, "Z4": 13.9}, "2023-05": {"below_z1": 596.2, "Z1": 548.6, "Z2": 563.7, "Z3": 276.4, "Z4": 13.4}, "2023-06": {"below_z1": 709.7, "Z2": 400.9, "Z1": 508.2, "Z3": 281.9, "Z4": 134.2}, "2023-07": {"Z2": 429.6, "Z3": 165.2, "below_z1": 794.5, "Z1": 365.7, "Z4": 68.6}, "2023-08": {"below_z1": 919.7, "Z1": 625.9, "Z3": 164.3, "Z2": 354.8, "Z4": 6.4, "Z5": 14.1}, "2023-09": {"below_z1": 905.6, "Z3": 228.7, "Z1": 321.4, "Z2": 504.0, "Z4": 46.0}, "2023-10": {"Z2": 212.0, "Z3": 95.1, "below_z1": 233.6, "Z1": 59.1, "Z4": 11.2}, "2023-12": {"below_z1": 446.5, "Z1": 366.3, "Z2": 44.9, "Z3": 62.1, "Z4": 16.6}, "2024-01": {"below_z1": 655.3, "Z1": 314.5, "Z2": 133.0, "Z3": 33.9, "Z4": 25.3}, "2024-02": {"below_z1": 888.2, "Z1": 360.1, "Z2": 169.3, "Z3": 57.9}, "2024-03": {"below_z1": 825.3, "Z2": 170.1, "Z1": 253.4, "Z3": 56.1, "Z4": 27.9, "Z5": 5.0}, "2024-04": {"Z1": 512.7, "below_z1": 485.0, "Z2": 78.7, "Z3": 0.4}, "2024-05": {"below_z1": 860.9, "Z1": 619.9, "Z2": 132.1, "Z3": 39.2}, "2024-06": {"below_z1": 932.4, "Z1": 416.0, "Z2": 243.5, "Z3": 102.4}, "2024-07": {"below_z1": 132.1, "Z1": 334.2, "Z2": 39.1}, "2024-08": {"Z1": 337.1, "Z3": 40.8, "Z2": 282.4, "below_z1": 422.8}, "2024-09": {"below_z1": 325.6, "Z1": 286.6, "Z2": 119.1, "Z3": 10.5}, "2024-10": {"below_z1": 481.2, "Z1": 195.5, "Z2": 80.1, "Z3": 14.6}, "2024-11": {"below_z1": 360.1, "Z2": 73.0, "Z1": 82.1, "Z3": 23.2, "Z4": 30.6}, "2024-12": {"Z4": 13.4, "below_z1": 270.3, "Z3": 6.9, "Z2": 69.4, "Z1": 98.8}, "2025-01": {"Z1": 114.3, "Z2": 59.1, "below_z1": 81.7}, "2025-02": {"Z1": 86.8, "Z2": 93.2, "below_z1": 217.5}, "2025-03": {"below_z1": 43.4, "Z1": 103.3, "Z2": 40.2}, "2025-04": {"Z1": 203.3, "Z2": 155.8, "below_z1": 338.6, "Z3": 9.9}, "2025-05": {"below_z1": 442.0, "Z2": 369.5, "Z1": 563.1, "Z3": 107.0}, "2025-06": {"below_z1": 651.8, "Z1": 490.0, "Z2": 411.0, "Z3": 81.4, "Z5": 0.2, "Z4": 1.4}, "2025-07": {"below_z1": 843.0, "Z1": 538.2, "Z2": 510.6, "Z3": 13.9, "Z4": 0.6}, "2025-08": {"below_z1": 57.4, "Z1": 52.9, "Z2": 58.3}};
+
+  const monthlyWhoop = {"2025-11": {"Z1": 36.2, "Z2": 7.0, "Z3": 5.9, "Z4": 0.5, "Z5": 0.0}, "2025-12": {"Z1": 267.9, "Z2": 82.7, "Z3": 28.1, "Z4": 3.3, "Z5": 0.0}, "2026-01": {"Z1": 385.0, "Z2": 185.3, "Z3": 91.9, "Z4": 9.9, "Z5": 1.6}, "2026-02": {"Z1": 449.2, "Z2": 69.2, "Z3": 23.1, "Z4": 1.4, "Z5": 0.0}, "2026-03": {"Z1": 402.7, "Z2": 164.3, "Z3": 57.8, "Z4": 2.5, "Z5": 0.0}, "2026-04": {"Z1": 1354.0, "Z2": 257.7, "Z3": 68.9, "Z4": 6.6, "Z5": 0.0}, "2026-05": {"Z1": 877.1, "Z2": 241.8, "Z3": 43.2, "Z4": 4.8, "Z5": 0.0}, "2026-06": {"Z1": 1049.0, "Z2": 250.7, "Z3": 63.7, "Z4": 0.0, "Z5": 0.0}, "2026-07": {"Z1": 339.1, "Z2": 324.2, "Z3": 76.2, "Z4": 0.0, "Z5": 0.0}};
+
+  const allMonths = [...new Set([...Object.keys(monthlyApple), ...Object.keys(monthlyWhoop)])].sort();
+
+  // Average per zone per month where both devices have data (below Z1 is
+  // Apple-only, since Whoop doesn't report that bucket, so it's used as-is).
+  const combinedZones = ZONE_ORDER.map(z=>({
+    label: ZONE_LABELS[z],
+    data: allMonths.map(m=>{
+      const a = monthlyApple[m] ? monthlyApple[m][z] : undefined;
+      const w = (z!=="below_z1" && monthlyWhoop[m]) ? monthlyWhoop[m][z] : undefined;
+      if(a!=null && w!=null) return Math.round((a+w)/2*10)/10;
+      if(a!=null) return a;
+      if(w!=null) return w;
+      return 0;
+    }),
+    backgroundColor: ZONE_COLORS[z],
+  }));
+
+  new Chart(document.getElementById("c-hr-zones-monthly").getContext("2d"), {
+    type:"bar",
+    data:{
+      labels: allMonths.map(fmtMonth),
+      datasets: combinedZones
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ labels:{font:{size:11}, boxWidth:11} },
+        tooltip:{callbacks:{label:(item)=> item.raw ? `${item.dataset.label}: ${item.raw} min` : null}}
+      },
+      scales:{
+        x:{stacked:true,ticks:{font:{size:9},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:8},grid:{display:false}},
+        y:{stacked:true,ticks:{font:{size:11},color:"#5b6b6a"},grid:{color:"#eef1f0"},title:{display:true,text:"minutes",font:{size:11}}}
+      }
+    }
+  });
+})();
+
+/* ============ BODY COMPOSITION (InBody export) ============ */
+const bc = [
+  {date:"2021-07-17", weight:88.4, smm:35.6, bf:29.0, fatMass:25.7, ffm:62.7, water:45.9, bmr:1725},
+  {date:"2023-03-01", weight:104.3, smm:35.6, bf:39.7, fatMass:41.4, ffm:62.9, water:46.2, bmr:1728},
+  {date:"2023-03-22", weight:98.7,  smm:34.9, bf:37.1, fatMass:36.7, ffm:62.0, water:45.6, bmr:1710},
+  {date:"2023-05-10", weight:87.8,  smm:34.3, bf:30.8, fatMass:27.1, ffm:60.7, water:44.6, bmr:1680},
+  {date:"2023-06-14", weight:84.0,  smm:35.6, bf:25.3, fatMass:21.2, ffm:62.8, water:46.1, bmr:1726},
+  {date:"2023-07-14", weight:82.3,  smm:36.4, bf:21.9, fatMass:18.0, ffm:64.3, water:47.2, bmr:1759},
+  {date:"2023-08-02", weight:81.0,  smm:36.2, bf:21.0, fatMass:17.0, ffm:64.0, water:47.0, bmr:1751},
+  {date:"2023-08-29", weight:81.6,  smm:37.0, bf:20.1, fatMass:16.4, ffm:65.2, water:48.0, bmr:1778},
+  {date:"2023-10-18", weight:78.0,  smm:36.8, bf:16.9, fatMass:13.2, ffm:64.8, water:47.5, bmr:1768},
+  {date:"2023-12-19", weight:80.4,  smm:37.3, bf:18.0, fatMass:14.4, ffm:66.0, water:48.4, bmr:null},
+  {date:"2024-04-01", weight:87.4,  smm:39.6, bf:20.7, fatMass:18.1, ffm:69.3, water:50.9, bmr:null},
+  {date:"2024-05-06", weight:86.8,  smm:40.2, bf:19.1, fatMass:16.6, ffm:70.2, water:51.6, bmr:null},
+  {date:"2024-06-29", weight:85.5,  smm:38.9, bf:20.6, fatMass:17.6, ffm:67.9, water:49.8, bmr:1837},
+  {date:"2026-07-22", weight:83.7,  smm:39.1, bf:18.7, fatMass:15.6, ffm:68.1, water:49.7, bmr:1852},
+];
+const bcLabels = bc.map(d=>{const dt=new Date(d.date+"T00:00:00"); return dt.toLocaleDateString("en-US",{month:"short",year:"numeric"});});
+new Chart(document.getElementById("c-bc-weight").getContext("2d"), {
+  type:"line",
+  data:{labels:bcLabels, datasets:[
+    {label:"Weight (kg)", data:bc.map(d=>d.weight), borderColor:"#0f6f66", backgroundColor:"rgba(15,111,102,0.08)", pointRadius:4, borderWidth:2, tension:0.25, fill:false},
+    {label:"Muscle Mass (kg)", data:bc.map(d=>d.smm), borderColor:"#7a5cb5", backgroundColor:"rgba(122,92,181,0.06)", pointRadius:4, borderWidth:2, tension:0.25, fill:false, yAxisID:"y1"},
+  ]},
+  options:{responsive:true, maintainAspectRatio:false, layout:{padding:{left:30, right:20}}, plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}}},
+    scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false}},
+      y:{position:"left",ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}},
+      y1:{position:"right",ticks:{font:{size:10},color:"#5b6b6a"},grid:{display:false}}}}
+});
+new Chart(document.getElementById("c-bc-bf").getContext("2d"), {
+  type:"line",
+  data:{labels:bcLabels, datasets:[{label:"Body Fat %", data:bc.map(d=>d.bf), borderColor:"#b1402f", backgroundColor:"rgba(177,64,47,0.08)", pointRadius:4, borderWidth:2, tension:0.25, fill:true}]},
+  options:{responsive:true, maintainAspectRatio:false, layout:{padding:{left:30, right:20}}, plugins:{legend:{display:false}},
+    scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false}}, y:{ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}}}}
+});
+new Chart(document.getElementById("c-bc-mass").getContext("2d"), {
+  type:"line",
+  data:{labels:bcLabels, datasets:[
+    {label:"Fat Mass (kg)", data:bc.map(d=>d.fatMass), borderColor:"#b1402f", backgroundColor:"rgba(177,64,47,0.08)", pointRadius:3, borderWidth:2, tension:0.25, fill:true},
+    {label:"Fat-Free Mass (kg)", data:bc.map(d=>d.ffm), borderColor:"#2f6fa8", backgroundColor:"rgba(47,111,168,0.06)", pointRadius:3, borderWidth:2, tension:0.25, fill:false},
+  ]},
+  options:{responsive:true, maintainAspectRatio:false, layout:{padding:{left:30, right:20}}, plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}}},
+    scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false}}, y:{ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}}}}
+});
+new Chart(document.getElementById("c-bc-water").getContext("2d"), {
+  type:"line",
+  data:{labels:bcLabels, datasets:[
+    {label:"Total Body Water (L)", data:bc.map(d=>d.water), borderColor:"#2f6fa8", backgroundColor:"rgba(47,111,168,0.08)", pointRadius:3, borderWidth:2, tension:0.25, fill:true},
+  ]},
+  options:{responsive:true, maintainAspectRatio:false, layout:{padding:{left:30, right:20}}, plugins:{legend:{display:false}},
+    scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false}},
+      y:{ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}}}}
+});
+
+new Chart(document.getElementById("c-bc-bmr").getContext("2d"), {
+  type:"line",
+  data:{labels:bcLabels, datasets:[
+    {label:"BMR (kcal)", data:bc.map(d=>d.bmr), borderColor:"#b5791a", backgroundColor:"rgba(181,121,26,0.08)", pointRadius:3, borderWidth:2, tension:0.25, fill:true, spanGaps:true},
+  ]},
+  options:{responsive:true, maintainAspectRatio:false, layout:{padding:{left:30, right:20}}, plugins:{legend:{display:false}},
+    scales:{x:{ticks:{font:{size:8},color:"#5b6b6a",maxRotation:0,minRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false}},
+      y:{ticks:{font:{size:10},color:"#5b6b6a"},grid:{color:"#eef1f0"}}}}
+});
+
+/* ============ PROFILE: age ring + latest vitals ============ */
+(function(){
+  const dob = new Date("1997-07-27T00:00:00");
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const hadBdayThisYear = (now.getMonth() > dob.getMonth()) ||
+    (now.getMonth() === dob.getMonth() && now.getDate() >= dob.getDate());
+  if(!hadBdayThisYear) age -= 1;
+
+  const lastBday = new Date(now.getFullYear() - (hadBdayThisYear?0:1), dob.getMonth(), dob.getDate());
+  const nextBday = new Date(lastBday.getFullYear()+1, dob.getMonth(), dob.getDate());
+  const totalMs = nextBday - lastBday;
+  const elapsedMs = now - lastBday;
+  const pct = Math.max(0, Math.min(1, elapsedMs/totalMs));
+
+  document.getElementById("age-number").textContent = age;
+
+  const circle = document.getElementById("age-ring");
+  const r = 42, circumference = 2*Math.PI*r;
+  circle.setAttribute("stroke-dasharray", circumference);
+  circle.setAttribute("stroke-dashoffset", circumference*(1-pct));
+
+  // Latest single-reading vitals — no trend, just the most recent value from each source.
+  const lastWhoop = whoopWeekly[whoopWeekly.length-1];
+  const vo2Sorted = appleMonthly.vo2;
+  const lastVo2 = vo2Sorted[vo2Sorted.length-1];
+  const lastVo2Date = new Date(lastVo2[0]+"T00:00:00").toLocaleDateString("en-US",{month:"short",year:"numeric"});
+  const lastWhoopDate = fmtWeek(lastWhoop.week);
+  const lastBc = bc[bc.length-1];
+  const lastBcDate = new Date(lastBc.date+"T00:00:00").toLocaleDateString("en-US",{month:"short",year:"numeric"});
+
+  const vitals = [
+    {name:"Resting Heart Rate", val:lastWhoop.rhr, unit:"bpm", date:lastWhoopDate},
+    {name:"HRV", val:lastWhoop.hrv, unit:"ms", date:lastWhoopDate},
+    {name:"VO2max", val:lastVo2[1], unit:"mL/kg/min", date:lastVo2Date},
+    {name:"Weight", val:lastBc.weight, unit:"kg", date:lastBcDate},
+    {name:"Body Fat", val:lastBc.bf, unit:"%", date:lastBcDate},
+  ];
+  const root = document.getElementById("vitals-latest");
+  root.innerHTML = vitals.map(v=>`
+    <div class="vital-card">
+      <div class="v-name">${v.name}</div>
+      <div class="v-val">${v.val}<span>${v.unit}</span></div>
+      <div class="v-date">${v.date}</div>
+    </div>`).join("");
+})();
+
+/* ============ LABS ============ */
+const DATA = [
+{cat:"Metabolic", name:"Glucose (Fasting)", unit:"mg/dL", range:[76,110],
+  pts:[["2023-03-15",83],["2023-06-30",86],["2024-04-23",75,"Low"],["2026-07-22",91]]},
+{cat:"Metabolic", name:"Hemoglobin A1C", unit:"%TOT.Hb", range:[4.0,6.0],
+  pts:[["2023-03-15",4.8],["2023-06-30",5.0],["2024-04-23",5.3],["2026-07-22",5.4]]},
+{cat:"Metabolic", name:"Insulin (Fasting)", unit:"µU/mL", range:[2.9,13.1],
+  pts:[["2023-03-15",5.9],["2024-04-23",5.8],["2026-07-22",6.5]]},
+{cat:"Lipids", name:"LDL-Cholesterol (Direct)", unit:"mg/dL", range:null,
+  pts:[["2023-03-15",116],["2023-06-30",106],["2024-04-23",90],["2026-07-22",82]]},
+{cat:"Lipids", name:"HDL-Cholesterol", unit:"mg/dL", range:null,
+  pts:[["2023-03-15",47],["2023-06-30",58],["2024-04-23",63],["2026-07-22",65]]},
+{cat:"Lipids", name:"Total Cholesterol", unit:"mg/dL", range:null,
+  pts:[["2023-03-15",194],["2023-06-30",190],["2024-04-23",177],["2026-07-22",177]]},
+{cat:"Lipids", name:"Cholesterol / HDL Ratio", unit:"", range:[0,4.97],
+  pts:[["2023-03-15",4.13],["2023-06-30",3.28],["2024-04-23",2.81],["2026-07-22",2.72]]},
+{cat:"Lipids", name:"Non-HDL Cholesterol", unit:"mg/dL", range:[0,130],
+  pts:[["2026-07-22",112]]},
+{cat:"Lipids", name:"Triglycerides", unit:"mg/dL", range:null,
+  pts:[["2023-03-15",87],["2023-06-30",77],["2024-04-24",56],["2026-07-22",61]]},
+{cat:"Lipids", name:"APO A1", unit:"g/L", range:[1.10,2.15],
+  pts:[["2023-06-30",1.62],["2024-04-23",1.57],["2026-07-22",1.75]]},
+{cat:"Lipids", name:"APO B", unit:"g/L", range:[0.55,1.25],
+  pts:[["2023-06-30",0.83],["2024-04-23",0.88],["2026-07-22",0.71]]},
+{cat:"Lipids", name:"APO B / APO A1 Ratio", unit:"", range:[0.30,0.90],
+  pts:[["2023-06-30",0.51],["2024-04-23",0.56],["2026-07-22",0.41]]},
+{cat:"Lipids", name:"Lipoprotein (a)", unit:"nmol/L", range:[0,75],
+  pts:[["2026-07-22",12.4]]},
+{cat:"Liver", name:"ALT (SGPT)", unit:"IU/L", range:[0,65],
+  pts:[["2023-03-15",42],["2023-06-30",36],["2024-04-23",27],["2026-07-22",31]]},
+{cat:"Liver", name:"AST (SGOT)", unit:"IU/L", range:[0,50],
+  pts:[["2023-03-15",32],["2023-06-30",27],["2024-04-23",32],["2026-07-22",27]]},
+{cat:"Liver", name:"GGT", unit:"IU/L", range:[10,60],
+  pts:[["2023-03-15",35],["2023-06-30",17],["2024-04-23",22],["2026-07-22",20]]},
+{cat:"Liver", name:"Alkaline Phosphatase", unit:"IU/L", range:[35,129],
+  pts:[["2023-03-15",58],["2023-06-30",71],["2024-04-23",78],["2026-07-22",66]]},
+{cat:"Kidney", name:"Creatinine", unit:"mg/dL", range:[0.60,1.20],
+  pts:[["2023-03-15",0.88],["2023-06-30",0.88],["2024-04-23",1.12],["2026-07-22",1.11]]},
+{cat:"Kidney", name:"eGFR (CKD-EPI)", unit:"mL/min/1.73m²", range:[60,130],
+  pts:[["2023-03-15",119],["2023-06-30",119],["2024-04-23",90],["2026-07-22",90]]},
+{cat:"Kidney", name:"BUN", unit:"mg/dL", range:[8,25],
+  pts:[["2024-04-23",13],["2026-07-22",12]]},
+{cat:"Kidney", name:"Uric Acid", unit:"mg/dL", range:[3.5,8.0],
+  pts:[["2023-03-15",8.4,"High"],["2024-04-23",6.7],["2024-04-24",7.1],["2026-07-22",6.9]]},
+{cat:"Electrolytes & Minerals", name:"Sodium", unit:"mmol/L", range:[135,145],
+  pts:[["2023-03-15",138],["2023-06-30",139],["2024-04-23",142],["2026-07-22",140]]},
+{cat:"Electrolytes & Minerals", name:"Potassium", unit:"mmol/L", range:[3.5,5.1],
+  pts:[["2023-03-15",4.3],["2023-06-30",4.6],["2024-04-23",4.9],["2026-07-22",4.6]]},
+{cat:"Electrolytes & Minerals", name:"Calcium", unit:"mg/dL", range:[8.5,10.5],
+  pts:[["2023-03-15",10.2],["2023-06-30",10.2],["2024-04-23",9.9],["2026-07-22",9.8]]},
+{cat:"Electrolytes & Minerals", name:"Magnesium", unit:"mg/dL", range:[1.6,2.5],
+  pts:[["2023-03-15",2.1],["2023-06-30",2.2],["2024-04-23",2.2],["2026-07-22",2.3]]},
+{cat:"Electrolytes & Minerals", name:"Phosphate, Inorganic", unit:"mg/dL", range:[2.7,4.8],
+  pts:[["2023-03-15",2.6,"Low"],["2023-06-30",4.0],["2024-04-23",3.9],["2026-07-22",3.7]]},
+{cat:"Hormones", name:"Testosterone", unit:"ng/dL", range:[249,836],
+  pts:[["2023-03-15",845.0,"High"],["2023-06-30",707.0],["2024-04-23",821.0],["2026-07-22",1005.0,"High"]]},
+{cat:"Hormones", name:"TSH", unit:"µU/mL", range:[0.270,4.200],
+  pts:[["2023-03-15",1.150],["2023-06-30",1.820],["2024-04-23",1.700],["2026-07-22",1.420]]},
+{cat:"Hormones", name:"Cortisol", unit:"µg/dL", range:null,
+  pts:[["2024-04-23",18.90],["2026-07-22",22.40]]},
+{cat:"Iron Studies", name:"Iron", unit:"µg/dL", range:[37,160],
+  pts:[["2024-04-23",150],["2026-07-22",111]]},
+{cat:"Iron Studies", name:"Iron Binding Capacity (TIBC)", unit:"µg/dL", range:[250,450],
+  pts:[["2024-04-23",358],["2026-07-22",344]]},
+{cat:"Iron Studies", name:"Iron % Saturation", unit:"%", range:[15,50],
+  pts:[["2024-04-23",41.9],["2026-07-22",32.3]]},
+{cat:"Iron Studies", name:"Ferritin", unit:"ng/mL", range:[25.0,310.0],
+  pts:[["2024-04-23",67.4],["2026-07-22",67.7]]},
+{cat:"Iron Studies", name:"Transferrin", unit:"g/L", range:[2.00,3.60],
+  pts:[["2026-07-22",2.73]]},
+{cat:"Vitamins & Inflammation", name:"Vitamin D 25(OH)", unit:"ng/mL", range:null,
+  pts:[["2023-06-30",27.0],["2026-07-22",39.5]]},
+{cat:"Vitamins & Inflammation", name:"Vitamin B12", unit:"pg/mL", range:[243,894],
+  pts:[["2024-04-23",265],["2026-07-22",271]]},
+{cat:"Vitamins & Inflammation", name:"C-Reactive Protein (CRP)", unit:"mg/L", range:[0.0,2.5],
+  pts:[["2023-03-15",0.8],["2023-06-30",0.3],["2024-04-23",0.3],["2026-07-22",0.6]]},
+];
+
+function statusFor(val, range, flag){
+  if(flag) return flag.toLowerCase()==="high"||flag.toLowerCase()==="low" ? "flag" : "watch";
+  if(!range) return "watch";
+  if(val < range[0] || val > range[1]) return "flag";
+  return "ok";
+}
+function fmtDate(d){ const dt=new Date(d+"T00:00:00"); return dt.toLocaleDateString("en-US",{month:"short",year:"numeric"}); }
+
+const labsRoot = document.getElementById("labs-root");
+const labCategories = [...new Set(DATA.map(d=>d.cat))];
+const allLabCharts = [];
+labCategories.forEach(cat=>{
+  const wrap = document.createElement("div");
+  wrap.className = "subcat";
+  wrap.innerHTML = `<h4>${cat}</h4><div class="grid" id="labgrid-${cat.replace(/[^a-z0-9]/gi,'')}"></div>`;
+  labsRoot.appendChild(wrap);
+  const grid = wrap.querySelector(".grid");
+  DATA.filter(d=>d.cat===cat).forEach((test,i)=>{
+    const card = document.createElement("div");
+    card.className = "card";
+    const last = test.pts[test.pts.length-1];
+    const lastStatus = statusFor(last[1], test.range, last[2]);
+    const rangeLabel = test.range ? `Range ${test.range[0]}–${test.range[1]} ${test.unit}` : "No reference range printed";
+    if(test.pts.length < 2){
+      card.innerHTML = `<div class="title-row"><span class="name">${test.name}</span><span class="latest ${lastStatus}">${last[1]} ${test.unit}</span></div>
+        <div class="meta">${rangeLabel} · single point (${fmtDate(last[0])})</div>`;
+      grid.appendChild(card);
+    } else {
+      const canvasId = `labchart-${cat.replace(/[^a-z0-9]/gi,'')}-${i}`;
+      card.innerHTML = `<div class="title-row"><span class="name">${test.name}</span><span class="latest ${lastStatus}">${last[1]} ${test.unit}</span></div>
+        <div class="meta">${rangeLabel}</div><div style="position:relative;height:120px;width:100%;"><canvas id="${canvasId}"></canvas></div>`;
+      grid.appendChild(card);
+      const ctx = card.querySelector("canvas").getContext("2d");
+      const labels = test.pts.map(p=>fmtDate(p[0]));
+      const values = test.pts.map(p=>p[1]);
+      const pointColors = test.pts.map(p=>{
+        const s = statusFor(p[1], test.range, p[2]);
+        return s==="flag" ? "#b1402f" : (s==="watch" ? "#b5791a" : "#0f6f66");
+      });
+      // Compute tight y-axis bounds so the trend always fills the chart,
+      // instead of letting Chart.js pick "nice" round numbers that can
+      // compress a narrow-range trend down near the bottom of the chart.
+      // Using strict min/max (not suggestedMin/Max) so these bounds hold
+      // even if the canvas is measured with an incorrect width before
+      // the grid layout has fully settled.
+      const allVals = test.range ? values.concat(test.range) : values;
+      const vMin = Math.min(...allVals), vMax = Math.max(...allVals);
+      const pad = Math.max((vMax - vMin) * 0.15, vMax * 0.02, 0.5);
+      const chart = new Chart(ctx, {
+        type:"line",
+        data:{labels, datasets:[{data:values, borderColor:"#0f6f66", backgroundColor:"rgba(15,111,102,0.08)",
+          pointBackgroundColor:pointColors, pointBorderColor:pointColors, pointRadius:4, pointHoverRadius:6, borderWidth:2, tension:0.25, fill:false}]},
+        options:{responsive:true, maintainAspectRatio:false,
+          layout:{padding:{left:10, right:10}},
+          plugins:{legend:{display:false}, tooltip:{callbacks:{label:(item)=>`${item.formattedValue} ${test.unit}`}}},
+          scales:{
+            x:{ticks:{font:{size:9},color:"#5b6b6a",autoSkip:false,maxRotation:0,minRotation:0},grid:{display:false}},
+            y:{min:vMin-pad, max:vMax+pad, ticks:{font:{size:10},color:"#5b6b6a",maxTicksLimit:4},grid:{color:"#eef1f0"}}
+          }},
+        plugins: test.range ? [{
+          id:"refBand",
+          beforeDraw(chart){
+            const {ctx, chartArea, scales} = chart;
+            if(!chartArea) return;
+            const yTop = scales.y.getPixelForValue(test.range[1]);
+            const yBot = scales.y.getPixelForValue(test.range[0]);
+            ctx.save(); ctx.fillStyle = "rgba(15,111,102,0.07)";
+            ctx.fillRect(chartArea.left, yTop, chartArea.right-chartArea.left, yBot-yTop); ctx.restore();
+          }
+        }] : []
+      });
+      allLabCharts.push(chart);
+    }
+  });
+});
+
+// Some browsers measure charts before the browser has finished computing
+// grid/container widths, which can make Chart.js pick a bogus canvas size
+// and garble the axis and labels. This affects every chart on the page,
+// not just the ones generated dynamically — forcing a resize on ALL chart
+// instances after layout has fully settled fixes it reliably everywhere.
+requestAnimationFrame(()=>{
+  requestAnimationFrame(()=>{
+    Object.values(Chart.instances || {}).forEach(c=>{
+      try { c.resize(); } catch(e) {}
+    });
+  });
+});
+// Extra safety net: Safari's paint/layout timing can differ from Chrome's,
+// so also force a resize pass shortly after full page load, in case the
+// double-rAF above still ran before layout was truly final.
+window.addEventListener('load', ()=>{
+  setTimeout(()=>{
+    Object.values(Chart.instances || {}).forEach(c=>{
+      try { c.resize(); } catch(e) {}
+    });
+  }, 300);
+});
+</script>
+</body>
+</html>
